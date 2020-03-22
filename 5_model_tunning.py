@@ -16,7 +16,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import RandomizedSearchCV
 
 #%%
 # Pre configure modules
@@ -70,15 +70,15 @@ def trgt_auc(y_true, y_score):
 # ## Stratified Random Forest
 
 # %%
-# Build Random Search
-def brf_rndm_search(param_grid, n_jobs, save=True):
+# Build and execute Random Search
+def brf_rndm_search(param_grid, n_iter, n_jobs, save=True):
     scorers = {'f1': make_scorer(trgt_f1, needs_proba=True),
                'auc': make_scorer(trgt_auc, needs_proba=True)}
 
     brf = BalancedRandomForestClassifier(bootstrap=False, random_state=random_state)
 
     search = RandomizedSearchCV(brf, param_grid, scoring=scorers, cv=5, refit='f1', 
-                                n_iter=500, n_jobs=n_jobs)
+                                n_iter=n_iter, n_jobs=n_jobs)
     search.fit(X_train, strt_train)
 
     if save:
@@ -98,26 +98,25 @@ base_params = {'bootstrap':[True, False],
 
 param_grid = [{'class_weight': [sp], 'sampling_strategy': [n_vals[i]], **base_params} for i, sp in enumerate(strata_ps)]
 
-brf_srch = brf_rndm_search(param_grid, n_jobs=10, save=True)
-brf_best = brf_srch.best_estimator_
+#brf_srch = brf_rndm_search(param_grid, n_iter=500, n_jobs=10, save=True)
+#brf_best = brf_srch.best_estimator_
 
 #%%[markdown]
 # ## Stratified Bagg + Boost
 
 # %%
-# Build Grid Search
-def bbb_grid_search(param_grid, n_jobs, save=True):
+# Build and execute Random Search
+def bbb_rndm_search(param_grid, n_iter, n_jobs, save=True):
     scorers = {'f1': make_scorer(trgt_f1, needs_proba=True),
                'auc': make_scorer(trgt_auc, needs_proba=True)}
 
-    tree = DecisionTreeClassifier(class_weight=strata_p)
+    tree = DecisionTreeClassifier()
 
     boost = AdaBoostClassifier(base_estimator=tree)
 
-    bbagg = BalancedBaggingClassifier(base_estimator=boost, sampling_strategy=n_vals,
-                                      bootstrap=False, random_state=random_state)
+    bbagg = BalancedBaggingClassifier(base_estimator=boost, random_state=random_state)
 
-    search = GridSearchCV(bbagg, param_grid, scoring=scorers, cv=5, refit='f1', n_jobs=n_jobs)
+    search = RandomizedSearchCV(bbagg, param_grid, scoring=scorers, cv=5, refit='f1', n_iter=n_iter, n_jobs=n_jobs)
     search.fit(X_train, strt_train)
 
     if save:
@@ -128,37 +127,60 @@ def bbb_grid_search(param_grid, n_jobs, save=True):
 
     return search
 
-param_grid = {'base_estimator__base_estimator__max_features': [0.5, 0.8],
-              'base_estimator__base_estimator__max_depth': [30, 50],
-              'base_estimator__n_estimators':[10, 25, 50],
-              'n_estimators': [250, 300, 500]}
+base_params = {'base_estimator__base_estimator__max_features': [0.5, 0.8, 'sqrt'],
+               'base_estimator__base_estimator__max_depth': [10, 20, 30, 40, None],
+               'base_estimator__n_estimators':[10, 15, 20, 30],
+               'bootstrap':[True, False],
+               'n_estimators': [200, 250, 300, 350, 400, 450]}
 
-#bbb_srch = bbb_grid_search(param_grid, n_jobs=8, save=True)
+param_grid = [{'base_estimator__base_estimator__class_weight': [sp], 'sampling_strategy': [n_vals[i]], **base_params} 
+              for i, sp in enumerate(strata_ps)]
+
+#bbb_srch = bbb_rndm_search(param_grid, n_iter=750,  n_jobs=12, save=True)
 #bbb_best = bbb_srch.best_estimator_
 
 
 #%%[markdown]
 # ## Load Previous Best Models and Grid Results
+
 # %%
 def load_search(which):
-    grid_search = {'bbb': bbb_grid_search, 'brf': brf_grid_search}
-    file_path = {'bbb': 'output/BBB_0_20200320_1937.csv', 'brf': 'output/BRF_1_20200320_1716.csv'}
+    rndm_search = {'bbb': bbb_rndm_search, 'brf': brf_rndm_search}
+    file_path = {'bbb': 'output/BBB_89_20200322_0300.csv', 'brf': 'output/BRF_212_20200321_1514.csv'}
 
+    # Loads result Detail
     results = pd.read_csv(file_path[which])
     results.drop(results.columns[0], axis=1, inplace=True)
+
+    # Build Scores per param configuration Dataframe and formats it.
+    param_scores = pd.DataFrame(results['params'].apply(eval).tolist())
+    param_scores = pd.concat([param_scores, results[['rank_test_f1', 'mean_test_f1', 'mean_test_auc']]], axis=1)
+
+    for i, c in enumerate(param_scores.columns):
+        if 'sampling_strategy' in c: param_scores.drop(c, axis=1, inplace=True)
+        elif 'class_weight' in c:
+            convert = lambda d: f'{int(d[0]*100)}:{int(d[1]*100)}:{int(d[2]*100)}'
+            param_scores[c] = param_scores[c].apply(convert)
+        
+        if 'base_estimator__base_estimator__' in c:
+            param_scores.rename(columns={c:c.replace('base_estimator__base_estimator__', 'tree_')}, inplace=True)
+        elif 'base_estimator__' in c: 
+            param_scores.rename(columns={c:c.replace('base_estimator__', 'boost_')}, inplace=True)
+    
+    # Gets best model configuration and ensembles it.
     id_best = results['rank_test_f1'].idxmin()
     param_grid = eval(results.loc[id_best, 'params'])
     
     for k, v in param_grid.items(): param_grid[k] = [v]
     param_grid['n_jobs'] = [10]
 
-    part_srch = grid_search[which](param_grid, n_jobs=1, save=False)
+    part_srch = rndm_search[which](param_grid, n_iter=1, n_jobs=1, save=False)
     best = part_srch.best_estimator_
 
-    return results, best
+    return results, param_scores, best
 
-bbb_rslt, bbb_best = load_search('bbb')
-brf_rslt, brf_best = load_search('brf')
+bbb_rslt, bbb_scores, bbb_best = load_search('bbb')
+brf_rslt, brf_scores, brf_best = load_search('brf')
 
 #%%[markdown]
 # ## Result Analysis
@@ -259,3 +281,4 @@ bbb_mtrcs, bbb_thrsh, bbb_matrix   = get_metrics(y_train, y_proba, plot=True)
 # - False Negatives seems the hardest to improve, this is because of the high threshold we are working with.
 # - High thresholds limits the model until there is a extremelly high certainty. But this actually gets the best (minimal) False Positive / False Negative ratio which is the main objective.
 # - From the two final candidates, we will proceed with the Stratified Bagg + Boost. Although both models gets similar False Negative counts, the False Possitive counts is remarkably better.
+

@@ -10,7 +10,6 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.decomposition import PCA
 
 from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler, SMOTE
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_recall_curve, confusion_matrix
@@ -20,17 +19,38 @@ from sklearn.ensemble import AdaBoostClassifier
 from sklearn.tree import DecisionTreeClassifier
 
 class Viz():
-    
+    """ Class for easy access to frequently used vizualisation tools
+
+        Class Atributes
+        ---------------
+
+        per_row: Number of charts per row when ensembling a multichart figure
+    """
     per_row = 2
 
     @classmethod
-    # Change default values
     def change_default(cls, per_row=2):
+        """ Changes default class atributes. In particular the number of charts per row.
+
+            Parameters
+            -----------
+            per_row: New value for number of charts per row in a multichart figure
+        """
         cls.per_row = per_row
 
     @classmethod
-    # Function to build base template to place charts
     def get_figure(cls, n_plots):
+        """ Returns pyplot axis array / object with grid layout to place charts
+            The grid layout is based on number of plots and default number of charts per row.
+
+            Parameters
+            ----------
+            n_plots: Number of carts that need to be placed in final figure
+
+            Returns
+            -------
+            ax: Pyplot axis object (when n_plots is 1) or array (when greater) to place charts.
+        """
         n_cols = cls.per_row if n_plots > 1 else 1
         n_rows = 1 if n_plots <= cls.per_row else int(round(0.49 + (n_plots / cls.per_row), 0))
         
@@ -39,9 +59,18 @@ class Viz():
 
         return ax
 
-    # Function to get readable string for number
     @classmethod
     def fnum(cls, n):
+        """ Turns number into readable abreviated string. Useful on annotating charts.
+
+            Parameters
+            ----------
+            n: Number that needs to be transformed
+
+            Returns
+            -------
+            n_str: String in readable abreviated format for the specified number
+        """
         n0, is_int = n, isinstance(n, int)
         magnitude = 0
         while abs(n) >= 1000:
@@ -51,9 +80,26 @@ class Viz():
         if is_int & (n0 < 1000): return f'{n0}'
         else: return '%.2f%s' % (n, ['', 'K', 'M', 'G', 'T', 'P'][magnitude])
     
-    # Function to plot aproximate distribution of a numeric data
     @classmethod
-    def kernel_plot(cls, X, y, c_plot, remove_val=[np.nan], rug_sample=1000): 
+    def kernel_plot(cls, X, y, c_plot, remove_val=[np.nan], rug_sample=1000):
+        """ Plots the KDE (Kernel Distribution Estimate) for specified metric columns. One chart per metric column.
+
+            Separates on distinct y values if required. 
+            Removes a set of values before plotting.
+            Adds rug plot based on subsample of data.
+
+            Parameters
+            ----------
+            X: DataFrame that includes metric columns.
+
+            y: None if any distinction is needed. Series alligned with X rows that represents separation criteria.
+
+            c_plot: List of columns that need to be plotted. One chart will be displayed per column in this list.
+
+            remove_val: List of values to remove from column data before plotting. Usefull to reduce noice.
+
+            rug_sample: Number of data subsampled to generate rugplot.
+        """
         y_vals = y.unique() if y is not None else []
         
         n_plots = len(c_plot)
@@ -89,9 +135,17 @@ class Viz():
         
         plt.show()
 
-    # Function to plot correlation heatmap
     @classmethod
     def corr_plot(cls, corr_matrix):
+        """ Plots correlation heatmap. Plot will remove upper diagonal values for better readability.
+
+            Two heatmaps will be displayed. One with corr values and the othe with its absolute values.
+            Values will be displayed as 100 * corr_value
+
+            Parameters
+            ----------
+            corr_matrix: DataFrame representing the confusion matrix to plot.
+        """
         aprox_corr = corr_matrix.round(2).mul(100).astype(int)
         abs_corr = aprox_corr.abs()
 
@@ -105,9 +159,23 @@ class Viz():
 
         plt.show()
 
-    # Function to count plot for category data
     @classmethod
     def count_plot(cls, X, y, c_plot, proportion=True):
+        """ Plots count plot for categorical data.
+
+            Separates bars on y distinct values.
+            Plots as absolute count or relative (to y value) proportion.
+
+            Parameters
+            ----------
+            X: DataFrame that includes categorical columns.
+
+            y: None if any distinction is needed. Series alligned with X rows that represents separation criteria.
+
+            c_plot: List of columns that need to be plotted. One chart will be displayed per column in this list.
+
+            proportion: If plot shows relative proportion or not.
+        """
         y = pd.Series([1] * X.shape[0], name='total') if y is None else y
         y_vals = y.unique()
         
@@ -139,6 +207,14 @@ class Viz():
 
     @classmethod
     def screeplot(cls, pca_var, pca_labels):
+        """ Plots screeplot for PCA Analysis. Will display explained variance and cummuative explained variance.
+
+            Parameters
+            ----------
+            pca_var: Iterable with variance explained per component found in PCA
+
+            pca_labels: Iterable with label per component found in PCA
+        """
         pca_cumvar = np.cumsum(pca_var)
         
         ax1 = cls.get_figure(1)
@@ -149,9 +225,25 @@ class Viz():
         plt.show()
 
 class Tools():
-    #Define function to filter zero values for specified cols
+    """ Class for easy access to preparation and analysis tools
+    """
+    
     @classmethod
     def filter_val(cls, X, c_check, vals=[None]):
+        """ Filters all of specified values on specified columns
+
+            Parameters
+            ----------
+            X: DataFrame where data fill be filtered
+
+            c_check: List of columns where data will be filtered
+
+            vals: List of values to filter
+
+            Returns
+            -------
+            X_filter: Same X DataFrame with filtered values.
+        """
         filters = []
         for c in c_check:
             for v in vals:
@@ -162,49 +254,63 @@ class Tools():
         if len(filters) > 0: return X.query(' | '.join(filters))
         else: return X
     
-    #Define function to calculate percentage of specified values
     @classmethod
     def get_percentage(cls, X, y, values=[0]):
+        """ Calculates percentage of specified values in all columns of X, separated by y values.
+
+            Parameters
+            ----------
+            X: DataFrame where percentage calculation will be performed
+
+            y: None if no tistinction is wanted. Series of values aligned with X rows to separate percentage calculation.
+
+            values: List of values to look for when calculating percentage.
+
+            Returns
+            -------
+            v_pct: DataFrame with same columns as X, with the percentage of values per column.
+        """
         if y is None: y = pd.Series(['total'] * X.shape[0], name='total', index=X.index)
         v_pct = pd.concat([X.isin(values), y], axis=1)
         v_pct = v_pct.groupby(y.name)
         v_pct = v_pct.agg(lambda x: sum(x) / len(x)).mul(100).round(2)
         return v_pct
     
-    # Find target proportions
     @classmethod
-    def get_target_prop(cls, X, y):
+    def get_target_prop(cls, y):
+        """ Calculates target proportion.
+
+            Parameters
+            ----------
+            y: Series with target values.
+
+            Returns
+            -------
+            targ_prop: DataFrame with target counts and target proportions
+        """
         target_proportion = list(zip(y.value_counts(),
                                     y.value_counts(normalize=True).mul(100).round(2)))
         target_proportion = pd.DataFrame(target_proportion, columns=['count', 'proportion'])
         return target_proportion
 
-    # Function to get outliers according to IQR or Z score.
     @classmethod
-    def outlier_limits(cls, d, method='IQR'):
-        if method == 'IQR':
-            q1, q3 = d.quantile(.25), d.quantile(.75)
-            iqr = q3 - q1
-            llim, ulim = q1 - (1.5 * iqr), q3 + (1.5 * iqr)
-        else:
-            mean, std = d.mean(), d.std()
-            llim, ulim = mean-(3*std), mean+(3*std)
-        
-        return llim, ulim
+    def strat_undersample_counts(cls, strt, strata_p, cv=False):
+        """ Calculates number of instances per strata for a stratified undersample.
 
-    # Undersample data
-    @classmethod
-    def undersample(cls, X, y, p, random_state=0):
-        r = p/(1-p)
-        us = RandomUnderSampler(r, random_state=random_state)
-        
-        X_resampled, y_resampled = us.fit_sample(X, y)
+            Considers if undersample will be used on cross validation.
 
-        return X_resampled, y_resampled
+            Parameters
+            ----------
+            strt: Series with strata value for each instance
 
-    # Get number of instances per strata for a stritified undersample.
-    @classmethod
-    def strat_undersample_counts(cls, strt, strata_p, random_state=0):
+            strata_p: Dict with percentage on final undersample per strata (key)
+
+            cv: If undersample will be used in cross validation
+
+            Returns
+            -------
+            n_vals: Dict with number of intances per strata (key)
+        """
         strt_counts = strt.value_counts()
         strt_min = strt_counts.idxmin()
         n_min, p_min = strt_counts[strt_min], strata_p[strt_min]
@@ -216,34 +322,54 @@ class Tools():
             n = int(min(p * n_min / p_min, n))
             n_vals[v] = n
 
+        if cv: n_vals = {k:int(v * 0.8) for k, v in n_vals.items()}
+
         return n_vals
     
-    # Undersample data
     @classmethod
-    def stratified_undersample(cls, X, y, strata_p, random_state=0):
-        n_vals = cls.strat_undersample_counts(y, strata_p, random_state)
+    def stratified_undersample(cls, X, strt, strata_p, random_state=0):
+        """ Gets a stratified under sample for X based on strata proportions.
+
+            Parameters
+            ----------
+            X: DataFrame that will be undersampled
+
+            strt: Series with strata values (aligned with X).
+
+            strata_p: Dict with percentage on final undersample per strata (key)
+
+            random_state: Random seed
+
+            Returns
+            -------
+            Xrs: Stratified undersample of X.
+
+            strt_rs: Stratified undersample of strt. Alligned with Xrs
+        """
+        n_vals = cls.strat_undersample_counts(strt, strata_p)
         
         us = RandomUnderSampler(n_vals, random_state=random_state)
-        Xrs, yrs = us.fit_resample(X.reset_index(), y)
+        Xrs, strt_rs = us.fit_resample(X.reset_index(), strt)
         Xrs = Xrs.set_index('index')
         
-        return Xrs, yrs
+        return Xrs, strt_rs
 
-    # Oversample data
-    @classmethod
-    def oversample(cls, X, y, p, method='random', random_state=0):
-        r = p/(1-p)
-
-        if method == 'smote': os = SMOTE(r, random_state=random_state)
-        else: os = RandomOverSampler(r, random_state=random_state)
-        
-        X_resampled, y_resampled = os.fit_sample(X, y)
-
-        return X_resampled, y_resampled
-
-    # Function to power transform data
     @classmethod
     def power_transform(cls, X, standardize=True):
+        """ Performs power transform on all columns of X
+
+            Uses yeo-johnson technique. Standardizes data if required.
+
+            Parameters
+            ----------
+            X: DataFrame that will be power transformed.
+
+            standardize: If standardization is required or not.
+
+            Returns
+            -------
+            Xyj: Transformed DataFrame
+        """
         yj = PowerTransformer(method='yeo-johnson', standardize=standardize)
         Xyj = yj.fit_transform(X)
         #lmbdas = yj.lambdas_
@@ -252,9 +378,18 @@ class Tools():
 
         return Xyj
 
-    # Function to quantile transform data
     @classmethod
     def quantile_transform(cls, X):
+        """ Performs quantile transform on all columns of X
+
+            Parameters
+            ----------
+            X: DataFrame that will be power transformed.
+
+            Returns
+            -------
+            Xqt: Transformed DataFrame
+        """
         rng = np.random.RandomState(304)
         qt = QuantileTransformer(n_quantiles=500, output_distribution='normal', random_state=rng)
         Xqt = qt.fit_transform(X)
@@ -263,9 +398,20 @@ class Tools():
 
         return Xqt
 
-    # Function to standardize data
     @classmethod
     def standardize(cls, X, which='minmax'):
+        """ Standardizes data based on min-max or normal strategy
+
+            Parameters
+            ----------
+            X: DataFrame that will be transformed
+
+            which: Either 'minmax' or 'normal' to specify method.
+
+            Returns
+            -------
+            Xstd: Transformed DataFrame
+        """
         if which == 'normal':
             std = StandardScaler()
             Xstd = std.fit_transform(X)
@@ -277,17 +423,46 @@ class Tools():
 
         return Xstd
 
-    # Check detailed view of correlation between measures
     @classmethod
-    def get_corr(cls, X, c_check, remove_val=[None]):  
+    def get_corr(cls, X, c_check, remove_val=[None]):
+        """ Calculates correlation matrix on specified columns of X.
+            
+            Parameters
+            ----------
+            X: DataFrame where correlation will be calculated.
+
+            c_check: List of columns of X to use on correlation matrix.
+
+            remove_val: List of values that need to be removed before calculating correlation.
+
+            Returns
+            -------
+            corr_matrix: Numpy matrix - Correlation matrix
+        """
         Xcorr = cls.filter_val(X, c_check, remove_val)
         corr_matrix = Xcorr.loc[:, c_check].corr()
 
         return corr_matrix
 
-    # PCA Transform
     @classmethod
     def pca(cls, X, c_pca):
+        """ Executes PCA on X for specified columns
+
+            The number of components will be the same number of columns in c_pca.
+            Will return explained variance per component as well.
+
+            Parameters
+            ----------
+            X: DataFrame that will be transformed
+
+            c_pca: List of columns to use in PCA
+
+            Returns
+            -------
+            Xpca: DataFrame with new PCA components
+
+            pca_var: Array with explained variance per component.
+        """
         n_comp = len(c_pca)
         pca = PCA(n_components=n_comp)
         Xpca = pca.fit_transform(X[c_pca])
@@ -299,9 +474,22 @@ class Tools():
 
         return Xpca, pca_var
 
-    # One Hot Encode
     @classmethod
     def oh_encode(cls, X, c_enc):
+        """ One Hot Encodes categorical data
+
+            Parameters
+            ----------
+            X: DataFrame where transformation will performed
+
+            c_enc: List of columns that will be encoded.
+
+            Returns
+            -------
+            X_enc: DataFrame with encoded categorical data.
+
+            enc_cols: List of encoded column names
+        """
         enc = OneHotEncoder(drop='first', sparse=False)
         Xenc = enc.fit_transform(X)
         enc_cols = enc.get_feature_names(input_features=c_enc)
@@ -310,15 +498,72 @@ class Tools():
 
         return Xenc, enc_cols
 
-
 class PF():
+    """ Class for Problem Specific Functions (PF). 
 
-    strata_p = {0: 0.05, 1: 0.8, 2: 0.15} #{0: 0.1, 1: 0.6, 2: 0.3} {0: 0.1, 1: 0.7, 2: 0.2} {0: 0.1, 1: 0.75, 2: 0.15}
+        Useful functions of analysis proccess are accumulated in this class for further steps use.
+
+        Class Attributes
+        ----------------
+        strata_p: Initial proportion values for stratified subsampling. Used throughout first 5 steps.
+
+        random_state: Random seed for replicability.
+
+        cat_cols: List of categorical column names. Available after import_data
+
+        num_cols: List of numerical column names. Available after import_data. Modified after remove_duplicates.
+
+        target_col: Name of target column. Available after import_data
+
+        zdense_col: List of zero dense column names. Available after full_zero_mark
+
+        f0_col: Name of the zero mark column. Available after full_zero_mark
+
+        strt_col: Name of strata column. Available after add_strata
+
+        dev_cols: List of names for device derived columns. Availale after device_features
+
+        date_cols: List of names for date derived columns. Availale after date_features
+
+        chng_cols: List of names for change columns. Availale after change_features
+
+        rank_cols: List of names for rank columns. Availale after rank_features
+
+        ncat_cols: List of names for new categorical columns. Available after add_features
+
+        nnum_cols: List of names for new categorical columns after adding new features. Available after add_features
+
+        ncat_cols: List of names for new numeric columns after adding new features. Available after add_features
+
+        cntr_cols: List of names for control columns (full zero and strata). Available after add_features
+
+        c_trans: Dict of transformation performed on each new numeric feature (key). Available after transform
+
+        pca_cols: List of names for PCA component columns. Available after pca.
+
+        enc_cols: List of names for encoded columns. Available after encode.
+    """
+
+    strata_p = {0: 0.1, 1: 0.6, 2: 0.3}
     random_state = 42
     
-    # Function to import data
     @classmethod
     def import_data(cls):
+        """ Imports original data.
+
+            Renames columns, and stores columns per type (categorical, numeric, target)
+            Removes duplicate rows if any.
+
+            Returns
+            -------
+            data: DataFrame with X and y with renamed columns
+
+            cat_cols: List of categorical column names
+
+            num_cols: List of numerical column names
+
+            target_col: Name of target column
+        """
         # Base columns
         cls.cat_cols = ['device', 'date']
         cls.num_cols = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9']
@@ -334,9 +579,24 @@ class PF():
 
         return data, cls.target_col, cls.cat_cols, cls.num_cols
 
-    # Function to add full zero mark
     @classmethod
     def full_zero_mark(cls, X):
+        """ Adds column representing if instance has only zeros in zero dense columns.
+
+            Stores a list of zero dense column names. Also the f0_col (zero mark column) name.
+
+            Parameters
+            ----------
+            X: DataFrame where zero mark column will be added
+
+            Returns
+            -------
+            Xz: Original DataFrame with the added zero mark column.
+
+            zdense_col: List of zero dense column names.
+
+            f0_col: Name of the zero mark column.
+        """
         cls.zdense_cols = [c for c in ['m2', 'm3', 'm4', 'm7', 'm8', 'm9'] if c in X.columns]
         cls.f0_col = 'f0'
         full_zero = pd.DataFrame(X[cls.zdense_cols].sum(axis=1) == 0, columns=[cls.f0_col])
@@ -346,6 +606,22 @@ class PF():
     
     @classmethod
     def add_strata(cls, X, y):
+        """ Adds strata column to X. Strata is calculated based on zero mark and target value.
+
+            Stores name for strata column
+
+            Parameters
+            ----------
+            X: DataFrame where strata column will be added.
+
+            y: Series with target values.
+
+            Returns
+            -------
+            Xstrt: Dataframe with added strata column
+
+            strt_col: Name of strata column
+        """
         strt = pd.Series([0] * X.shape[0], index=X.index)
         strt[(y == 0) & (X[cls.f0_col] == 0)] = 1
         strt[(y == 1)] = 2
@@ -357,14 +633,39 @@ class PF():
     
     @classmethod
     def remove_duplicates(cls, X):
+        """ Removes duplicated columns in X
+
+            Updates stored num_cols without duplicated columns names
+
+            Paramaters
+            ----------
+            X: DataFrame where duplicate column will be removed
+
+            Returns
+            -------
+            Xrem: DataFrame with removed column
+        """
         X = X.drop('m8', axis=1)
         cls.num_cols.remove('m8')
 
         return X, cls.num_cols
     
-    # Function to add device features
     @classmethod
     def device_features(cls, X):
+        """ Adds device derived features.
+
+            Stores new column names.
+
+            Parameters
+            ----------
+            X: DataFrame where device derived columns will be added.
+
+            Returns
+            -------
+            Xdev: DataFrame with device derived columns added
+
+            dev_cols: List of names for device derived columns
+        """
         X['L1'] = X['device'].str[0:2]
         X['L2'] = X['device'].str[2:4]
         X['L12'] = X['device'].str[0:4]
@@ -375,9 +676,22 @@ class PF():
 
         return X, cls.dev_cols
 
-    # Function to add features from date
     @classmethod
     def date_features(cls, X):
+        """ Adds date derived features.
+
+            Stores new column names.
+
+            Parameters
+            ----------
+            X: DataFrame where date derived columns will be added.
+
+            Returns
+            -------
+            Xdt: DataFrame with date derived columns added
+
+            date_cols: List of names for date derived columns
+        """
         #X['Y'] = X['date'].dt.year
         X['Q'] = X['date'].dt.quarter
         X['M'] = X['date'].dt.month
@@ -390,9 +704,22 @@ class PF():
 
         return X, cls.date_cols
 
-    # Function to add change features
     @classmethod
     def change_metrics(cls, X):
+        """ Adds Metric Percentage Change (Time Oriented).
+
+            Stores name of change columns
+
+            Parameters
+            ----------
+            X: DataFrame where change data will be added
+
+            Returns
+            -------
+            Xchng: DataFrame with change metrics added
+
+            chng_cols: List of names for change columns
+        """
         # Sort data 
         Xsort = X.sort_values(cls.cat_cols)
 
@@ -413,9 +740,22 @@ class PF():
 
         return X, cls.chng_cols
 
-    # Function to add rank features
     @classmethod
     def rank_metrics(cls, X):
+        """ Adds Standardized Rank Metrics (History dependent).
+
+            Stores name of rank columns
+
+            Parameters
+            ----------
+            X: DataFrame where rank data will be added
+
+            Returns
+            -------
+            Xrnk: DataFrame with rank metrics added
+
+            rnk_cols: List of names for rank columns
+        """
         Xrnk = X[cls.num_cols].rank(method='min').sub(1).div(X.shape[0])
         Xrnk.columns = [c.replace('m', 'sr') for c in Xrnk.columns]
         Xrnk['srav'] = Xrnk.mean(axis=1)
@@ -429,9 +769,22 @@ class PF():
 
         return X, cls.rnk_cols
 
-    # Function to add all features
     @classmethod
     def add_features(cls, X, y):
+        """ Adds all new features (zero mark, strata, device derived, data derived, change, rank) and remove duplocated columns.
+
+            Stores lists for new categorical column names, new numeric column names, and control solumn name (full zero and strata)
+
+            Parameters
+            ----------
+            X: DataFrame where new features will be added
+
+            y: Series with target values
+
+            Returns
+            -------
+            Xftr: DataFrame with additional features. 
+        """
         X, _ = cls.remove_duplicates(X)
         X, _ = cls.device_features(X)
         X, _ = cls.date_features(X)
@@ -446,9 +799,20 @@ class PF():
 
         return X
 
-    # Function to transform all numeric features
     @classmethod
     def transform(cls, X):
+        """ Transforms numeric features based on analysis conclusions.
+
+            Stores transformations performed per numeric column
+
+            Parameters
+            ----------
+            X: DataFrame where transformation will be performed
+
+            Return
+            ------
+            Xtrans: DataFrame with numeric data transformed
+        """
         cls.c_trans = {}
         cls.c_trans['m'] = {'m1': 'qt', 'm2':'nrm', 'm3':'nrm', 'm4':'nrm', 
                             'm5':'qt', 'm6':'qt', 'm7':'nrm', 'm9':'nrm'}
@@ -469,24 +833,58 @@ class PF():
 
         return X
     
-    # Function to pca transform all numeric features
     @classmethod
     def pca(cls, X):
+        """ Performs PCA transformation on numeric features
+
+            Stores name for PCA component columns.
+
+            Parameters
+            ----------
+            X: DataFrame where PCA transformation will be performed.
+
+            Returns
+            -------
+            Xpca: DataFrame with PCA transformed columns.
+        """
         c_pca = cls.nnum_cols
         Xpca, cls.pca_cols = Tools.pca(X, c_pca)
         return Xpca
     
-    # Function to one hot encode all categorical features
     @classmethod
     def encode(cls, X):
+        """ Performs One Hot Encoding to categorical columns
+
+            Stores names for encoded column names
+
+            Parameters
+            ----------
+            X: DataFrame where encoding will be performed
+
+            Returns
+            -------
+            Xenc: DataFrame with encoded columns
+        """
         cat_cols = [c for c in PF.ncat_cols if c not in PF.cat_cols]
         Xenc, cls.enc_cols = Tools.oh_encode(X[cat_cols], cat_cols)
 
         return Xenc
     
-    # Function to prepare all features
     @classmethod
     def prepare_features(cls, X, num_transform=True):
+        """ Performs all preparation steps on data (transform, pca and encode)-
+
+            Parameters
+            ----------
+            X: DataFrame where prepaation will be performed
+
+            num_transform: If numerical transformation and PCA should be performed
+
+            Returns
+            -------
+            Xprp: DataFrame with prepared columns. Ready for modeling.
+
+        """
         if num_transform:
             Xnum = cls.transform(X)
             Xnum = cls.pca(Xnum)
@@ -498,24 +896,19 @@ class PF():
         return Xprep
     
     @classmethod
-    def get_nvals(cls, strt, strata_p, cv=False):
-        n_vals = Tools.strat_undersample_counts(strt, strata_p, cls.random_state)
-        if cv: n_vals = {k:int(v * 0.8) for k, v in n_vals.items()}
-
-        return n_vals
-    
-    # Function to stratified undersample
-    @classmethod
-    def strat_undersample(cls, X, y, strata_p=strata_p, random_state=random_state):
-        Xrs, _ = Tools.stratified_undersample(X, X[cls.strt_col], strata_p, random_state)
-        yrs = y.loc[Xrs.index]
-
-        return Xrs, yrs
-    
-    # Best Stratified Bagg + Boost Model
-    @classmethod
     def best_strat_bagg_boost(cls, X_train, strt_train):
-        
+        """ Ensembles best Stratified Bagg + Boost Model, based on Random Search results.
+
+            Parameters
+            ----------
+            X_train: DataFrame for training model
+
+            strt_train: Series with strata data for training the model.
+
+            Returns
+            -------
+            bbagg: Best Stratified Bagg + Boost Model
+        """
         n_vals = Tools.strat_undersample_counts(strt_train, cls.strata_p, cls.random_state)
 
         tree = DecisionTreeClassifier(class_weight='balanced', max_depth=30, max_features=0.5)
@@ -529,9 +922,26 @@ class PF():
 
         return bbagg
 
-    # Define function to get Precision / Recall curve, Best Threshold and F1 Confusion Matrix
     @classmethod
     def get_metrics(cls, y_true, y_proba, plot=True):
+        """ Gets Precision / Recall curve with corresponding F1 score, Best Threshold and Confusion Matrix
+
+            Parameters
+            ----------
+            y_true: Series with values for target
+
+            y_proba: Series with probabilities for positive target
+
+            plot: If visualizing plot that summarizes results is required.
+
+            Returns
+            -------
+            pr_data: DataFrame with Precision, Recall curve data and corresponding Threshold and F1 Score
+
+            thrs_best: Threshold for best F1 Score
+
+            conf_matrix: Confusion matrix for best F1 Score
+        """
         prc, rcl, thrsh = precision_recall_curve(y_true, y_proba) 
         f1 = 2 * ((prc * rcl) / (prc + rcl))
         pr_data = pd.DataFrame([thrsh, prc, rcl, f1], index=['threshold', 'precision', 'recall', 'f1']).transpose()
