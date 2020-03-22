@@ -53,6 +53,12 @@ The following project aims to experiment different concepts in the persuit of an
 
 In order to follow the process, you can either follow each file for each step, or follow the **device_failure.ipynb** file. I highly encourage you to check all files for a deeper understanding of the entire process.
 
+## Output Files
+
+In the **/output** folder, you are going to find the results for a Random Search made for hyperparamether tunning of two models and the results for a Feature Importance analysis performed throughout the process. 
+
+The purpose of this files is to avoy the execution of both analysis since they are resource intensive and time consuming. In each step where theis results are needed, you will find a function that easilly loads the resukt data.
+
 ## Final Comment
 
 ### Hope you like the work done. 

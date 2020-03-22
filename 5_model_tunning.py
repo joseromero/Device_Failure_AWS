@@ -85,7 +85,7 @@ def brf_rndm_search(param_grid, n_iter, n_jobs, save=True):
         results, best_id = pd.DataFrame(search.cv_results_), search.best_index_
         current_time = datetime.now().strftime('%Y%m%d_%H%M')
         name = f'BRF_{best_id}_{current_time}'
-        results.to_csv(f'output/{name}.csv')
+        results.to_csv(f'output/random_search/{name}.csv')
 
     return search
 
@@ -123,7 +123,7 @@ def bbb_rndm_search(param_grid, n_iter, n_jobs, save=True):
         results, best_id = pd.DataFrame(search.cv_results_), search.best_index_
         current_time = datetime.now().strftime('%Y%m%d_%H%M')
         name = f'BBB_{best_id}_{current_time}'
-        results.to_csv(f'output/{name}.csv')
+        results.to_csv(f'output/random_search/{name}.csv')
 
     return search
 
@@ -141,12 +141,12 @@ param_grid = [{'base_estimator__base_estimator__class_weight': [sp], 'sampling_s
 
 
 #%%[markdown]
-# ## Load Previous Best Models and Grid Results
+# ## Load Previous Best Models, Grid Results, and Params Scores
 
 # %%
 def load_search(which):
     rndm_search = {'bbb': bbb_rndm_search, 'brf': brf_rndm_search}
-    file_path = {'bbb': 'output/BBB_89_20200322_0300.csv', 'brf': 'output/BRF_212_20200321_1514.csv'}
+    file_path = {'bbb': 'output/random_search/BBB_89_20200322_0300.csv', 'brf': 'output/random_search/BRF_212_20200321_1514.csv'}
 
     # Loads result Detail
     results = pd.read_csv(file_path[which])
@@ -156,7 +156,7 @@ def load_search(which):
     param_scores = pd.DataFrame(results['params'].apply(eval).tolist())
     param_scores = pd.concat([param_scores, results[['rank_test_f1', 'mean_test_f1', 'mean_test_auc']]], axis=1)
 
-    for i, c in enumerate(param_scores.columns):
+    for c in param_scores.columns:
         if 'sampling_strategy' in c: param_scores.drop(c, axis=1, inplace=True)
         elif 'class_weight' in c:
             convert = lambda d: f'{int(d[0]*100)}:{int(d[1]*100)}:{int(d[2]*100)}'
@@ -166,6 +166,8 @@ def load_search(which):
             param_scores.rename(columns={c:c.replace('base_estimator__base_estimator__', 'tree_')}, inplace=True)
         elif 'base_estimator__' in c: 
             param_scores.rename(columns={c:c.replace('base_estimator__', 'boost_')}, inplace=True)
+    
+    param_scores.sort_values('rank_test_f1', inplace=True)
     
     # Gets best model configuration and ensembles it.
     id_best = results['rank_test_f1'].idxmin()
@@ -189,30 +191,66 @@ brf_rslt, brf_scores, brf_best = load_search('brf')
 # ### Grid Search
 
 #%%
-# Grid Result Columns and Plot Function
-rslt_cols = ['mean_test_f1', 'mean_test_auc']
+# Plot Grid Scores
+def plot_grid_scores(scrs):
+    scr_cols = ['mean_test_f1', 'mean_test_auc']
 
-def plot_grid_results(rslt, rslt_cols):
-    brf_sub_rslt = rslt[rslt_cols].reset_index()
-    Viz.change_default(per_row=1)
+    sub_scrs = scrs[scr_cols].reset_index()
     ax, colors = Viz.get_figure(2), sns.color_palette()
 
-    for i, m in enumerate(rslt_cols):
-        max_val , min_val = brf_sub_rslt[m].max(), brf_sub_rslt[m].min()
+    for i, m in enumerate(scr_cols):
+        max_val , min_val = sub_scrs[m].max(), sub_scrs[m].min()
         rng_val = max_val - min_val
+        
         ax[i].set(ylim=(min_val - (0.1 * rng_val), max_val + (0.1 * rng_val)))
-        sns.barplot(data=brf_sub_rslt, x='index', y=m, hue=None, color=colors[i], ax=ax[i])
+        ax[i].set_title(m.replace('_', ' '))
+        sns.lineplot(data=sub_scrs, x='index', y=m, color=colors[i], ax=ax[i])
+
+    plt.show()
+
+# Plot Score by Param
+def plot_param_scores(scrs, which='f1'):
+
+    scr_col = {'f1':'mean_test_f1', 'auc':'mean_test_auc'}
+    
+    param_cols = scrs.columns[0:-3]
+    n_params = param_cols.size
+
+    Viz.change_default(per_row=3)
+    ax, colors = Viz.get_figure(n_params), sns.color_palette()
+
+    for i, p in enumerate(param_cols):
+        c = f'mean {which}'
+        p_scrs = scrs[[p] + [scr_col[which]]].groupby(p).agg(['mean']).reset_index()
+        p_scrs.columns = [p, c]
+
+        max_val , min_val = p_scrs[c].max(), p_scrs[c].min()
+        rng_val = max_val - min_val
+        
+        ax[i].set(xlim=(min_val - (0.15 * rng_val), max_val + (0.15 * rng_val)))
+        ax[i].set_title('F1 Score - ' + p.replace('_', ' '))
+        sns.barplot(data=p_scrs, x=c, y=p, color=colors[i % 3], orient='h', ax=ax[i])
+        ax[i].xaxis.set_label_text('')
+        ax[i].yaxis.set_label_text('')
 
     Viz.change_default()
     plt.show()
 
 #%%
 # Check F1 / AUC score for Grid Search of Stratified Random Forest
-plot_grid_results(brf_rslt, rslt_cols)
+plot_grid_scores(brf_scores)
+
+#%%
+# Check F1 score per Parameter of Stratified Random Forest
+plot_param_scores(brf_scores, which='f1')
 
 #%%
 # Check F1 / AUC score for Grid Search of Stratified Bagg + Boost
-plot_grid_results(bbb_rslt, rslt_cols)
+plot_grid_scores(bbb_scores)
+
+#%%
+# Check F1 score per Parameter of Stratified Bagg + Boost
+plot_param_scores(bbb_scores, which='f1')
 
 #%%[markdown]
 # ### Grid Search - Conclusions
@@ -220,16 +258,22 @@ plot_grid_results(bbb_rslt, rslt_cols)
 # - ROC and F1 Score (for 90% Threshold) behave similarly.
 # - F1 Score seems more sensitive to hyperparameter changes. This is expected since the problem is highly unbalanced, and F1 score makes a better job reflecting that.
 # - Both scores are lower than when designing the candidates. This is because of cross validation technique. As it subsamples for validation, reduces available information for training (which is already small).
-# - Scores are repeated between hyperparameter configutrations, this ilustrates irrelevance of some hyperparameter values.
+# - For each specific parameter it can be seen which value optimizes ensemble performance.
+# - Random Search was performed for 500 iteration on Random Forest and 750 iterations on Bagg + Boost
 #
 #
 # Stratified Random Forest
-# - Increasing Max Estimators, and Max Depth does not improve scores after 250 and 30. 
-# - Note that 250 estimators is close to the proxy defined previously.
+# - Definately the proposed stratefied undersampling proportions 10:60:30 with no bootstrapping gets best result.
+# - Min Samples on Leaf reflects a expected behaviour, since failure values are very few, cases must be quite specific.
+# - Increasing the min number of samples per split sseems to add value. Perhaps experimenting on additional value options can help.
+# - Increasing the number of estimators by much does not improve results. Best amount is 350. Note that is close to the proxy defined previously.
+# - Increasing max depth of estimators does not add much value. Perhaps trying lower values can help.
 #
 #
 # Stratified Bagg + Boost
-# - Similarly, increasing tree depth and number of estimators after a certain value does not improve metrics.
+# - Definately the proposed stratefied undersampling proportions 10:60:30 with no bootstrapping gets best result.
+# - Increasing the number of bagging and boosting estimators by much does not improve results. Best amount is 200 and 10 respectively.
+# - Increasing tree depth seems to improve results.
 
 #%%[markdown]
 # ### Best Configuration
@@ -280,5 +324,5 @@ bbb_mtrcs, bbb_thrsh, bbb_matrix   = get_metrics(y_train, y_proba, plot=True)
 # - Performance is expected to be higher when training with whole train set and testing on test set.
 # - False Negatives seems the hardest to improve, this is because of the high threshold we are working with.
 # - High thresholds limits the model until there is a extremelly high certainty. But this actually gets the best (minimal) False Positive / False Negative ratio which is the main objective.
-# - From the two final candidates, we will proceed with the Stratified Bagg + Boost. Although both models gets similar False Negative counts, the False Possitive counts is remarkably better.
+# - From the two final candidates, we will proceed with the Stratified Bagg + Boost. It gets best results in both False Negative counts and the False Possitive counts.
 

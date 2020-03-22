@@ -896,7 +896,7 @@ class PF():
         return Xprep
     
     @classmethod
-    def best_strat_bagg_boost(cls, X_train, strt_train):
+    def best_strat_bagg_boost(cls, X_train, strt_train, trained=True):
         """ Ensembles best Stratified Bagg + Boost Model, based on Random Search results.
 
             Parameters
@@ -905,20 +905,24 @@ class PF():
 
             strt_train: Series with strata data for training the model.
 
+            trained: If want model to be trained or not.
+
             Returns
             -------
             bbagg: Best Stratified Bagg + Boost Model
         """
-        n_vals = Tools.strat_undersample_counts(strt_train, cls.strata_p, cls.random_state)
+        strata_p = {0: 0.05, 1: 0.75, 2: 0.2}
 
-        tree = DecisionTreeClassifier(class_weight='balanced', max_depth=30, max_features=0.5)
+        n_vals = Tools.strat_undersample_counts(strt_train, strata_p, cls.random_state)
 
-        boost = AdaBoostClassifier(base_estimator=tree, n_estimators=10)
+        tree = DecisionTreeClassifier(class_weight=strata_p, max_depth=40, max_features=0.5)
 
-        bbagg = BalancedBaggingClassifier(base_estimator=boost, n_estimators=300, sampling_strategy=n_vals,
+        boost = AdaBoostClassifier(base_estimator=tree, n_estimators=20)
+
+        bbagg = BalancedBaggingClassifier(base_estimator=boost, n_estimators=200, sampling_strategy=n_vals,
                                           bootstrap=False, random_state=cls.random_state, n_jobs=10)
         
-        bbagg.fit(X_train, strt_train)
+        if trained: bbagg.fit(X_train, strt_train)
 
         return bbagg
 
