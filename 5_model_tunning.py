@@ -50,7 +50,7 @@ y_train, y_test = y[X_train.index], y[X_test.index]
 strata_ps = [{0: 0.05, 1: 0.8, 2: 0.15}, {0: 0.1, 1: 0.75, 2: 0.15},
              {0: 0.05, 1: 0.75, 2: 0.2}, {0: 0.1, 1: 0.7, 2: 0.2}, {0: 0.1, 1: 0.65, 2: 0.25}, 
              {0: 0.1, 1: 0.6, 2: 0.3}, {0: 0.05, 1: 0.65, 2: 0.3}, {0: 0.05, 1: 0.6, 2: 0.35}]
-n_vals = [PF.get_nvals(strt_train, sp, cv=True) for sp in strata_ps]
+n_vals = [Tools.strat_undersample_counts(strt_train, sp, cv=True) for sp in strata_ps]
 
 #%%
 # Define Score Functions - Score from stratified results to target outcomes
