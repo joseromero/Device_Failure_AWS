@@ -118,10 +118,11 @@ class Viz():
                     plot = sns.kdeplot(x, shade=True, ax=axi)
                     
                     if rug_sample > 0:
-                        color = plot.get_lines()[j].get_c()
-                        s = x.sample(n=rug_sample) if x.size > rug_sample else x
-                        s.name = name
-                        sns.rugplot(s, ax=axi, color=color)
+                        if len(plot.get_lines()) > j:
+                            color = plot.get_lines()[j].get_c()
+                            s = x.sample(n=rug_sample) if x.size > rug_sample else x
+                            s.name = name
+                            sns.rugplot(s, ax=axi, color=color)
             else: 
                 x = X.loc[~X[c].isin(remove_val), c]
                 n.append(x.size)
@@ -194,6 +195,7 @@ class Viz():
             if proportion: 
                 ycnt, cnt_name = {}, 'pct'
                 for v in y_vals: ycnt[v] = (y == v).sum()
+                ycnt = pd.Series(ycnt)
                 cnt_data = cnt_data.div(ycnt).replace([-np.inf, np.inf], 0)
             cnt_name = 'pct' if proportion else 'cnt'
             
